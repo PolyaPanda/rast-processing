@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raster Algorithms</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        canvas {
+            border: 2px solid #444;
+            background-color: #fff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        .scale-info {
+            font-weight: bold;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Centering the scale info */
+        }
+        .scale-buttons {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <div>
+        <button onclick="drawStepLine()">Пошаговый алгоритм</button>
+        <button onclick="drawCDALine()">Алгоритм ЦДА</button>
+        <button onclick="drawBresenhamLine()">Алгоритм Брезенхэма (линия)</button>
+        <button onclick="drawBresenhamCircle()">Алгоритм Брезенхэма (окружность)</button>
+        
+        <div class="scale-info">
+            <button onclick="changeScale(-1)">-</button>
+            Масштаб: <span id="scaleValue">10</span>
+            <button onclick="changeScale(1)">+</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let scale = 10; // Начальный масштаб
+
+        // Очистка канваса
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawAxes();
+        }
+
+        // Рисование сетки
+        function drawGrid() {
+            ctx.strokeStyle = '#e0e0e0';
+            const halfWidth = canvas.width / 2;
+            const halfHeight = canvas.height / 2;
+
+            // Vertical lines
+            for (let i = -Math.floor(halfWidth / scale); i <= Math.floor(halfWidth / scale); i++) {
+                const x = i * scale + halfWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            // Horizontal lines
+            for (let i = -Math.floor(halfHeight / scale); i <= Math.floor(halfHeight / scale); i++) {
+                const y = i * scale + halfHeight;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        // Рисование осей координат
+        function drawAxes() {
+            ctx.strokeStyle = 'black';
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+        }
+
+        // Изменение масштаба
+        function changeScale(delta) {
+            scale += delta;
+            if (scale < 1) scale = 1; // Ограничение минимального масштаба
+            document.getElementById('scaleValue').innerText = scale;
+            clearCanvas(); // Перерисовка канваса с новым масштабом
+        }
+
+        // Рисование линии (пошаговый алгоритм)
+        function drawStepLine() {
+            clearCanvas();
+            let x0 = 1, y0 = 1, x1 = 15, y1 = 15;
+            const dx = x1 - x0;
+            const dy = y1 - y0;
+            const steps = Math.max(Math.abs(dx), Math.abs(dy));
+            const xInc = dx / steps;
+            const yInc = dy / steps;
+
+            for (let i = 0; i <= steps; i++) {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(canvas.width / 2 + Math.round(x0 * scale) - 1, canvas.height / 2 - Math.round(y0 * scale) - 1, 2, 2);
+                x0 += xInc;
+                y0 += yInc;
+            }
+        }
+
+        // Рисование линии (алгоритм ЦДА)
+        function drawCDALine() {
+            clearCanvas();
+            let x0 = 1, y0 = 15, x1 = 15, y1 = 1;
+            const dx = x1 - x0;
+            const dy = y1 - y0;
+            const steps = Math.max(Math.abs(dx), Math.abs(dy));
+            const xInc = dx / steps;
+            const yInc = dy / steps;
+
+            for (let i = 0; i <= steps; i++) {
+                ctx.fillStyle = 'blue';
+                ctx.fillRect(canvas.width / 2 + Math.round(x0 * scale) - 1, canvas.height / 2 - Math.round(y0 * scale) - 1, 2, 2);
+                x0 += xInc;
+                y0 += yInc;
+            }
+        }
+
+        // Рисование линии (алгоритм Брезенхэма)
+        function drawBresenhamLine() {
+            clearCanvas();
+            let x0 = 1, y0 = 10, x1 = 15, y1 = 10;
+            const dx = x1 - x0;
+            const dy = y1 - y0;
+            const sx = dx > 0 ? 1 : -1;
+            const sy = dy > 0 ? 1 : -1;
+            const absDx = Math.abs(dx);
+            const absDy = Math.abs(dy);
+
+            if (absDx > absDy) {
+                let err = absDx / 2;
+                while (x0 !== x1) {
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(canvas.width / 2 + x0 * scale - 1, canvas.height / 2 - y0 * scale - 1, 2, 2);
+                    err -= absDy;
+                    if (err < 0) {
+                        y0 += sy;
+                        err += absDx;
+                    }
+                    x0 += sx;
+                }
+            } else {
+                let err = absDy / 2;
+                while (y0 !== y1) {
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(canvas.width / 2 + x0 * scale - 1, canvas.height / 2 - y0 * scale - 1, 2, 2);
+                    err -= absDx;
+                    if (err < 0) {
+                        x0 += sx;
+                        err += absDy;
+                    }
+                    y0 += sy;
+                }
+            }
+        }
+
+        // Рисование окружности (алгоритм Брезенхэма)
+        function drawBresenhamCircle() {
+            clearCanvas();
+            let xCenter = 0, yCenter = 0, radius = 10;
+            let x = radius, y = 0;
+            let err = 0;
+
+            while (x >= y) {
+                drawCirclePoints(xCenter, yCenter, x, y);
+                y++;
+                err += 1 + 2 * y;
+                if (2 * err > 2 * x) {
+                    x--;
+                    err -= 2 * x;
+                }
+            }
+        }
+
+        function drawCirclePoints(xCenter, yCenter, x, y) {
+            ctx.fillStyle = 'magenta';
+            const points = [
+                [xCenter + x, yCenter + y],
+                [xCenter + y, yCenter + x],
+                [xCenter - y, yCenter + x],
+                [xCenter - x, yCenter + y],
+                [xCenter - x, yCenter - y],
+                [xCenter - y, yCenter - x],
+                [xCenter + y, yCenter - x],
+                [xCenter + x, yCenter - y]
+            ];
+            points.forEach(point => {
+                ctx.fillRect(canvas.width / 2 + point[0] * scale - 1, canvas.height / 2 - point[1] * scale - 1, 2, 2);
+            });
+        }
+
+        clearCanvas(); // Инициализация канваса
+    </script>
+</body>
+</html>

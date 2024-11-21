@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raster Algorithms</title>
+    <title>Raster Algorithms Visualization</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -16,7 +16,7 @@
             color: #333;
         }
         canvas {
-            border: 2px solid #444;
+            border: 2px solid #007bff;
             background-color: #fff;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
             margin-bottom: 20px;
@@ -39,200 +39,418 @@
         button:active {
             transform: scale(0.95);
         }
-        .scale-info {
-            font-weight: bold;
-            margin-top: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center; /* Centering the scale info */
+        .input-fields {
+            margin-bottom: 10px;
         }
-        .scale-buttons {
+        input, select {
+            margin: 0 5px;
+            width: 60px;
+            text-align: center;
+        }
+        #output {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            border: 1px solid #ccc;
+            padding: 5px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        #scaleContainer {
             display: flex;
             align-items: center;
-            margin: 0 10px;
+            margin-bottom: 10px;
+        }
+        #scaleValue {
+            margin-left: 10px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <canvas id="canvas" width="400" height="400"></canvas>
-    <div>
-        <button onclick="drawStepLine()">Пошаговый алгоритм</button>
-        <button onclick="drawCDALine()">Алгоритм ЦДА</button>
-        <button onclick="drawBresenhamLine()">Алгоритм Брезенхэма (линия)</button>
-        <button onclick="drawBresenhamCircle()">Алгоритм Брезенхэма (окружность)</button>
-        
-        <div class="scale-info">
-            <button onclick="changeScale(-1)">-</button>
-            Масштаб: <span id="scaleValue">10</span>
-            <button onclick="changeScale(1)">+</button>
-        </div>
+    <div class="input-fields">
+        <label for="algorithm">Алгоритм:</label>
+        <select id="algorithm" onchange="updateInput()">
+            <option value="step">Пошаговый алгоритм</option>
+            <option value="dda">Алгоритм ЦДА</option>
+            <option value="bresenham">Алгоритм Брезенхэма (линия)</option>
+            <option value="bresenhamCircle">Алгоритм Брезенхэма (окружность)</option>
+        </select>
     </div>
+    <div class="input-fields">
+        <label for="startX">x1:</label>
+        <input type="number" id="startX" value="0">
+        <label for="startY">y1:</label>
+        <input type="number" id="startY" value="0">
+        <label for="endX">x2:</label>
+        <input type="number" id="endX" value="10">
+        <label for="endY">y2:</label>
+        <input type="number" id="endY" value="10">
+    </div>
+    <div class="input-fields">
+        <label for="centerX">Центр x:</label>
+        <input type="number" id="centerX" value="0">
+        <label for="centerY">Центр y:</label>
+        <input type="number" id="centerY" value="0">
+        <label for="radius">Радиус:</label>
+        <input type="number" id="radius" value="10" min="1">
+    </div>
+    <button id="drawButton">Нарисовать</button>
+    <div id="scaleContainer">
+        <label for="scale">Масштаб:</label>
+        <input type="number" id="scale" value="10" min="1">
+    </div>
+    <div id="output"></div>
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        let scale = 10; // Начальный масштаб
+        const canvas = document.getElementById("canvas");
+        const twoD = canvas.getContext("2d");
+        const output = document.getElementById("output");
+        const scaleInput = document.getElementById("scale");
+        const drawButton = document.getElementById("drawButton");
 
-        // Очистка канваса
-        function clearCanvas() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawGrid();
-            drawAxes();
-        }
+        let gridSize = parseInt(scaleInput.value, 10);
+        const width = canvas.width;
+        const height = canvas.height;
 
-        // Рисование сетки
-        function drawGrid() {
-            ctx.strokeStyle = '#e0e0e0';
-            const halfWidth = canvas.width / 2;
-            const halfHeight = canvas.height / 2;
+        let startPoint = { x: 0, y: 0 };
+        let endPoint = { x: 0, y: 0 };
+        let centerPoint = { x: 0, y: 0 };
+        let radiusLen = 0;
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+        let lastMousePos = { x: 0, y: 0 };
 
-            // Vertical lines
-            for (let i = -Math.floor(halfWidth / scale); i <= Math.floor(halfWidth / scale); i++) {
-                const x = i * scale + halfWidth;
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
+        function updateInput() {
+            const algorithm = document.getElementById("algorithm").value;
+            const circleInputs = document.querySelectorAll("#centerX, #centerY, #radius");
+            const lineInputs = document.querySelectorAll("#startX, #startY, #endX, #endY");
 
-            // Horizontal lines
-            for (let i = -Math.floor(halfHeight / scale); i <= Math.floor(halfHeight / scale); i++) {
-                const y = i * scale + halfHeight;
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-        }
-
-        // Рисование осей координат
-        function drawAxes() {
-            ctx.strokeStyle = 'black';
-            ctx.beginPath();
-            ctx.moveTo(canvas.width / 2, 0);
-            ctx.lineTo(canvas.width / 2, canvas.height);
-            ctx.moveTo(0, canvas.height / 2);
-            ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.stroke();
-        }
-
-        // Изменение масштаба
-        function changeScale(delta) {
-            scale += delta;
-            if (scale < 1) scale = 1; // Ограничение минимального масштаба
-            document.getElementById('scaleValue').innerText = scale;
-            clearCanvas(); // Перерисовка канваса с новым масштабом
-        }
-
-        // Рисование линии (пошаговый алгоритм)
-        function drawStepLine() {
-            clearCanvas();
-            let x0 = 1, y0 = 1, x1 = 15, y1 = 15;
-            const dx = x1 - x0;
-            const dy = y1 - y0;
-            const steps = Math.max(Math.abs(dx), Math.abs(dy));
-            const xInc = dx / steps;
-            const yInc = dy / steps;
-
-            for (let i = 0; i <= steps; i++) {
-                ctx.fillStyle = 'red';
-                ctx.fillRect(canvas.width / 2 + Math.round(x0 * scale) - 1, canvas.height / 2 - Math.round(y0 * scale) - 1, 2, 2);
-                x0 += xInc;
-                y0 += yInc;
-            }
-        }
-
-        // Рисование линии (алгоритм ЦДА)
-        function drawCDALine() {
-            clearCanvas();
-            let x0 = 1, y0 = 15, x1 = 15, y1 = 1;
-            const dx = x1 - x0;
-            const dy = y1 - y0;
-            const steps = Math.max(Math.abs(dx), Math.abs(dy));
-            const xInc = dx / steps;
-            const yInc = dy / steps;
-
-            for (let i = 0; i <= steps; i++) {
-                ctx.fillStyle = 'blue';
-                ctx.fillRect(canvas.width / 2 + Math.round(x0 * scale) - 1, canvas.height / 2 - Math.round(y0 * scale) - 1, 2, 2);
-                x0 += xInc;
-                y0 += yInc;
-            }
-        }
-
-        // Рисование линии (алгоритм Брезенхэма)
-        function drawBresenhamLine() {
-            clearCanvas();
-            let x0 = 1, y0 = 10, x1 = 15, y1 = 10;
-            const dx = x1 - x0;
-            const dy = y1 - y0;
-            const sx = dx > 0 ? 1 : -1;
-            const sy = dy > 0 ? 1 : -1;
-            const absDx = Math.abs(dx);
-            const absDy = Math.abs(dy);
-
-            if (absDx > absDy) {
-                let err = absDx / 2;
-                while (x0 !== x1) {
-                    ctx.fillStyle = 'green';
-                    ctx.fillRect(canvas.width / 2 + x0 * scale - 1, canvas.height / 2 - y0 * scale - 1, 2, 2);
-                    err -= absDy;
-                    if (err < 0) {
-                        y0 += sy;
-                        err += absDx;
-                    }
-                    x0 += sx;
-                }
+            if (algorithm === "bresenhamCircle") {
+                circleInputs.forEach(input => input.style.display = 'inline');
+                lineInputs.forEach(input => input.style.display = 'none');
             } else {
-                let err = absDy / 2;
-                while (y0 !== y1) {
-                    ctx.fillStyle = 'green';
-                    ctx.fillRect(canvas.width / 2 + x0 * scale - 1, canvas.height / 2 - y0 * scale - 1, 2, 2);
-                    err -= absDx;
-                    if (err < 0) {
-                        x0 += sx;
-                        err += absDy;
-                    }
-                    y0 += sy;
-                }
+                circleInputs.forEach(input => input.style.display = 'none');
+                lineInputs.forEach(input => input.style.display = 'inline');
             }
         }
 
-        // Рисование окружности (алгоритм Брезенхэма)
-        function drawBresenhamCircle() {
-            clearCanvas();
-            let xCenter = 0, yCenter = 0, radius = 10;
-            let x = radius, y = 0;
-            let err = 0;
+        function drawGrid() {
+            twoD.clearRect(0, 0, width, height);
+            twoD.strokeStyle = "#ddd";
+            twoD.lineWidth = 1;
 
-            while (x >= y) {
-                drawCirclePoints(xCenter, yCenter, x, y);
-                y++;
-                err += 1 + 2 * y;
-                if (2 * err > 2 * x) {
-                    x--;
-                    err -= 2 * x;
-                }
+            for (let x = width / 2 + offsetX; x <= width; x += gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(x, 0);
+                twoD.lineTo(x, height);
+                twoD.stroke();
+            }
+            for (let x = width / 2 + offsetX; x >= 0; x -= gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(x, 0);
+                twoD.lineTo(x, height);
+                twoD.stroke();
+            }
+
+            for (let y = height / 2 + offsetY; y <= height; y += gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(0, y);
+                twoD.lineTo(width, y);
+                twoD.stroke();
+            }
+            for (let y = height / 2 + offsetY; y >= 0; y -= gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(0, y);
+                twoD.lineTo(width, y);
+                twoD.stroke();
+            }
+
+            drawAxes();
+            drawAxisTicks();
+        }
+
+        function drawAxes() {
+            twoD.strokeStyle = "#007bff"; // Голубой цвет
+            twoD.lineWidth = 2;
+
+            // Ось X
+            twoD.beginPath();
+            twoD.moveTo(0 + offsetX, height / 2 + offsetY);
+            twoD.lineTo(width, height / 2 + offsetY);
+            twoD.stroke();
+
+            // Ось Y
+            twoD.beginPath();
+            twoD.moveTo(width / 2 + offsetX, 0);
+            twoD.lineTo(width / 2 + offsetX, height);
+            twoD.stroke();
+
+            // Подписи осей
+            twoD.fillStyle = "#007bff";
+            twoD.font = "14px Arial";
+            twoD.fillText("X", width - 20, height / 2 + 15 + offsetY);
+            twoD.fillText("Y", width / 2 + offsetX + 5, 15);
+
+            // Стрелки для оси X (право)
+            drawArrow(width - 10, height / 2 + offsetY, -10, 5);
+            drawArrow(width - 10, height / 2 + offsetY, -10, -5);
+
+            // Стрелки для оси Y (вверх)
+            drawArrow(width / 2 + offsetX, 10, 5, 10);
+            drawArrow(width / 2 + offsetX, 10, -5, 10);
+        }
+
+        function drawArrow(x, y, dx, dy) {
+            twoD.beginPath();
+            twoD.moveTo(x, y);
+            twoD.lineTo(x + dx, y + dy);
+            twoD.stroke();
+        }
+
+        function drawAxisTicks() {
+            twoD.strokeStyle = "007bff";
+            twoD.lineWidth = 1;
+
+            for (let x = width / 2 + gridSize + offsetX; x < width; x += gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(x, height / 2 - 5 + offsetY);
+                twoD.lineTo(x, height / 2 + 5 + offsetY);
+                twoD.stroke();
+            }
+
+            for (let x = width / 2 - gridSize + offsetX; x >= 0; x -= gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(x, height / 2 - 5 + offsetY);
+                twoD.lineTo(x, height / 2 + 5 + offsetY);
+                twoD.stroke();
+            }
+
+            for (let y = height / 2 + gridSize + offsetY; y < height; y += gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(width / 2 - 5 + offsetX, y);
+                twoD.lineTo(width / 2 + 5 + offsetX, y);
+                twoD.stroke();
+            }
+
+            for (let y = height / 2 - gridSize + offsetY; y >= 0; y -= gridSize) {
+                twoD.beginPath();
+                twoD.moveTo(width / 2 - 5 + offsetX, y);
+                twoD.lineTo(width / 2 + 5 + offsetX, y);
+                twoD.stroke();
             }
         }
 
-        function drawCirclePoints(xCenter, yCenter, x, y) {
-            ctx.fillStyle = 'magenta';
-            const points = [
-                [xCenter + x, yCenter + y],
-                [xCenter + y, yCenter + x],
-                [xCenter - y, yCenter + x],
-                [xCenter - x, yCenter + y],
-                [xCenter - x, yCenter - y],
-                [xCenter - y, yCenter - x],
-                [xCenter + y, yCenter - x],
-                [xCenter + x, yCenter - y]
-            ];
-            points.forEach(point => {
-                ctx.fillRect(canvas.width / 2 + point[0] * scale - 1, canvas.height / 2 - point[1] * scale - 1, 2, 2);
+        function toCanvas(x, y) {
+            return {
+                x: width / 2 + x * gridSize + offsetX,
+                y: height / 2 - y * gridSize + offsetY,
+            };
+        }
+
+        function paintPixel(x, y, color = "007bff") {
+            const { x: canvasX, y: canvasY } = toCanvas(x, y);
+            twoD.fillStyle = color;
+            twoD.fillRect(canvasX, canvasY - gridSize, gridSize, gridSize);
+        }
+
+        function toOutput(text) {
+            const p = document.createElement("p");
+            p.textContent = text;
+            output.appendChild(p);
+        }
+
+        function stepAlgorithm() {
+            toOutput("Пошаговый алгоритм:");
+
+            let x0 = startPoint.x;
+            let y0 = startPoint.y;
+            let x1 = endPoint.x;
+            let y1 = endPoint.y;
+            toOutput(`Отрезок от (${x0}, ${y0}) до (${x1}, ${y1})`);
+
+            let dx = x1 - x0;
+            let dy = y1 - y0;
+            let steps = Math.max(Math.abs(dx), Math.abs(dy));
+            let xIncrement = dx / steps;
+            let yIncrement = dy / steps;
+
+            let coords = [];
+
+            for (let i = 0; i <= steps; i++) {
+                let x = Math.round(x0 + i * xIncrement);
+                let y = Math.round(y0 + i * yIncrement);
+                coords.push([x, y]);
+            }
+
+            coords.forEach(coord => {
+                toOutput(`Рисуем (${coord[0]}, ${coord[1]})`);
+                paintPixel(coord[0], coord[1]);
             });
         }
 
-        clearCanvas(); // Инициализация канваса
+        function DDA() {
+            toOutput("Алгоритм ЦДА:");
+            let x0 = startPoint.x;
+            let y0 = startPoint.y;
+            let x1 = endPoint.x;
+            let y1 = endPoint.y;
+
+            let dx = x1 - x0;
+            let dy = y1 - y0;
+            let steps = Math.abs(dx) > Math.abs(dy) ? Math.abs(dx) : Math.abs(dy);
+            let xIncrement = dx / steps;
+            let yIncrement = dy / steps;
+
+            let coords = [];
+
+            for (let i = 0; i <= steps; i++) {
+                let x = Math.floor(x0 + i * xIncrement);
+                let y = Math.floor(y0 + i * yIncrement);
+                coords.push([x, y]);
+            }
+
+            coords.forEach(coord => {
+                toOutput(`Точка (${coord[0]}, ${coord[1]}), рисуем (${coord[0]}, ${coord[1]})`);
+                paintPixel(coord[0], coord[1]);
+            });
+        }
+
+        function BresenhamLine() {
+            toOutput("Алгоритм Брезенхэма:");
+            let x0 = startPoint.x;
+            let y0 = startPoint.y;
+            let x1 = endPoint.x;
+            let y1 = endPoint.y;
+
+            toOutput(`Отрезок от (${x0}, ${y0}) до (${x1}, ${y1})`);
+            const dx = Math.abs(x1 - x0);
+            const dy = Math.abs(y1 - y0);
+            const sx = x0 < x1 ? 1 : -1;
+            const sy = y0 < y1 ? 1 : -1;
+            let err = dx - dy;
+
+            while (true) {
+                toOutput(`Рисуем точку (${x0}, ${y0})`);
+                paintPixel(x0, y0);
+                if (x0 === x1 && y0 === y1) {
+                    toOutput(`Алгоритм достиг конечной точки и завершает работу`);
+                    break;
+                }
+                const e2 = err * 2;
+                if (e2 > -dy) {
+                    err -= dy;
+                    x0 += sx;
+                }
+                if (e2 < dx) {
+                    err += dx;
+                    y0 += sy;
+                }
+                toOutput(`Новая ошибка err = ${err}`);
+            }
+        }
+
+        function BresenhamCircle() {
+            toOutput("Алгоритм Брезенхэма для окружности:");
+
+            let x0 = centerPoint.x;
+            let y0 = centerPoint.y;
+            radiusLen = parseInt(document.getElementById("radius").value);
+            toOutput(`Центр в точке (${x0}, ${y0}), радиус равен ${radiusLen}`);
+            if (radiusLen < 1) {
+                toOutput(`Радиус должен быть положительным!`);
+                return;
+            }
+
+            let x = 0;
+            let y = radiusLen;
+            let d = 3 - 2 * radiusLen;
+
+            while (y >= x) {
+                toOutput(`Рисуем точку (${x0 + x}, ${y0 + y}) и все симметричные`);
+                paintPixel(x0 + x, y0 + y);
+                paintPixel(x0 - x, y0 + y);
+                paintPixel(x0 + x, y0 - y);
+                paintPixel(x0 - x, y0 - y);
+                paintPixel(x0 + y, y0 + x);
+                paintPixel(x0 - y, y0 + x);
+                paintPixel(x0 + y, y0 - x);
+                paintPixel(x0 - y, y0 - x);
+                if (d < 0) {
+                    d = d + 4 * x + 6;
+                } else {
+                    d = d + 4 * (x - y) + 10;
+                    y--;
+                }
+                x++;
+                toOutput(`Ошибка err = ${d}`);
+            }
+        }
+
+        function draw() {
+            output.innerHTML = "";
+            drawGrid();
+            const algorithm = document.getElementById("algorithm").value;
+
+            if (algorithm === "bresenhamCircle") {
+                const centerX = parseInt(document.getElementById("centerX").value);
+                const centerY = parseInt(document.getElementById("centerY").value);
+                centerPoint = { x: centerX, y: centerY };
+                BresenhamCircle();
+            } else {
+                const startX = parseInt(document.getElementById("startX").value);
+                const startY = parseInt(document.getElementById("startY").value);
+                const endX = parseInt(document.getElementById("endX").value);
+                const endY = parseInt(document.getElementById("endY").value);
+
+                startPoint = { x: startX, y: startY };
+                endPoint = { x: endX, y: endY };
+
+                if (algorithm === "step") {
+                    stepAlgorithm();
+                } else if (algorithm === "dda") {
+                    DDA();
+                } else if (algorithm === "bresenham") {
+                    BresenhamLine();
+                }
+            }
+        }
+
+        scaleInput.addEventListener("input", () => {
+            gridSize = parseInt(scaleInput.value, 10);
+            drawGrid();
+            draw();
+        });
+
+        drawButton.addEventListener("click", draw);
+
+        canvas.addEventListener("mousedown", event => {
+            isDragging = true;
+            lastMousePos.x = event.clientX;
+            lastMousePos.y = event.clientY;
+        });
+
+        canvas.addEventListener("mousemove", event => {
+            if (isDragging) {
+                const dx = event.clientX - lastMousePos.x;
+                const dy = event.clientY - lastMousePos.y;
+
+                offsetX += dx;
+                offsetY += dy;
+                lastMousePos.x = event.clientX;
+                lastMousePos.y = event.clientY;
+
+                draw();
+            }
+        });
+
+        canvas.addEventListener("mouseup", () => { isDragging = false; });
+        canvas.addEventListener("mouseout", () => { isDragging = false; });
+
+        drawGrid();
+        updateInput();
     </script>
 </body>
 </html>
